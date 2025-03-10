@@ -1,0 +1,75 @@
+<RelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/gradient_2">
+
+    <!-- Header -->
+    <TextView
+        android:id="@+id/header"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="40dp"
+        android:text="Extracted Text"
+        android:textSize="24sp"
+        android:textColor="#FFFFFF"
+        android:textStyle="bold" />
+
+    <!-- Button Container -->
+    <LinearLayout
+        android:id="@+id/buttonContainer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/header"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="16dp"
+        android:orientation="horizontal"
+        android:gravity="center">
+
+        <!-- Copy to Clipboard Button -->
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/copyButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/gradient_buttons"
+            android:padding="20dp"
+            android:layout_marginEnd="8dp"
+            android:text="Copy to Clipboard"
+            android:textColor="#FFFFFF"
+            android:fontFamily="sans-serif-medium" />
+
+        <!-- Download Button -->
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/downloadButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/gradient_buttons"
+            android:layout_marginStart="8dp"
+            android:text="Download as .txt"
+            android:textColor="#FFFFFF"
+            android:padding="20dp"
+            android:fontFamily="sans-serif-medium" />
+    </LinearLayout>
+
+    <!-- ScrollView for the output text -->
+    <ScrollView
+        android:id="@+id/scrollView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@+id/buttonContainer"
+        android:layout_marginTop="16dp"
+        android:padding="16dp">
+
+        <!-- TextView for displaying the output -->
+        <TextView
+            android:id="@+id/outputTextView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#000000"
+            android:textSize="16sp"
+            android:lineSpacingExtra="8dp"
+            android:fontFamily="sans-serif"
+            android:textIsSelectable="true" />
+    </ScrollView>
+</RelativeLayout>
