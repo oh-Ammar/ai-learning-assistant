@@ -1,82 +1,29 @@
 package com.example.aiquizgenerator;
 
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
-import android.graphics.drawable.AnimationDrawable;
 import android.net.Uri;
-import android.os.Bundle;
 import android.os.AsyncTask;
+import android.os.Bundle;
 import android.provider.MediaStore;
 import android.view.View;
 import android.view.animation.AnimationUtils;
-import android.webkit.MimeTypeMap;
 import android.widget.Button;
+import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-import android.Manifest;
-import android.content.pm.PackageManager;
-import android.os.Build;
-import android.widget.Toast;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
+
+import com.example.aiquizgenerator.helpers.OCRProcessor;
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.text.PDFTextStripper;
-import org.apache.poi.hwpf.HWPFDocument;
-import org.apache.poi.hwpf.extractor.WordExtractor;
-import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.apache.poi.hssf.usermodel.HSSFWorkbook;
-import org.apache.poi.xwpf.usermodel.XWPFPictureData;
-
-import com.googlecode.tesseract.android.TessBaseAPI;
-import android.graphics.BitmapFactory;
-
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
+import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import java.io.IOException;
-import java.io.InputStream;
-import java.util.List;
-import java.util.logging.Logger;
-
-import android.widget.ProgressBar;
-
-import android.content.Intent;
-import android.graphics.Bitmap;
-import android.net.Uri;
-import android.os.AsyncTask;
-import android.os.Bundle;
-import android.provider.MediaStore;
-import android.view.View;
-import android.view.animation.AnimationUtils;
-import android.widget.Button;
-import android.widget.ProgressBar;
-import android.widget.RelativeLayout;
-import android.widget.TextView;
-import android.widget.Toast;
-
-import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatActivity;
-
-import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
-import com.tom_roush.pdfbox.pdmodel.PDDocument;
-import com.tom_roush.pdfbox.text.PDFTextStripper;
-
-import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
-import org.apache.poi.xwpf.usermodel.XWPFDocument;
-
 import java.io.InputStream;
 
 public class DocumentToText extends AppCompatActivity {
@@ -86,27 +33,22 @@ public class DocumentToText extends AppCompatActivity {
     private RelativeLayout rootLayout;
     private static final int PICK_IMAGE_REQUEST = 1;
     private static final int PICK_FILE_REQUEST_CODE = 2;
-
-    private OCRProcessor ocrProcessor; // Utilize the provided OCRProcessor class
+    private OCRProcessor ocrProcessor;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        PDFBoxResourceLoader.init(getApplicationContext());
         getSupportActionBar().hide();
         setContentView(R.layout.activity_document_to_text);
 
-        // Initialize UI components
         uploadDocument = findViewById(R.id.uploadDocument);
         uploadImage = findViewById(R.id.uploadImage);
         progressBar = findViewById(R.id.progressBar);
-        progressText = findViewById(R.id.progressText); // Add progress text
+        progressText = findViewById(R.id.progressText);
         rootLayout = findViewById(R.id.rootLayout);
 
-        // Initialize the OCRProcessor
         ocrProcessor = new OCRProcessor();
 
-        // Button click listeners
         uploadDocument.setOnClickListener(v -> {
             v.startAnimation(AnimationUtils.loadAnimation(this, R.anim.button_click));
             openDocumentPicker();
@@ -117,11 +59,19 @@ public class DocumentToText extends AppCompatActivity {
             openImagePicker();
         });
     }
+// Inside DocumentToText class:
 
-    @Override
-    public void onBackPressed() {
-        super.onBackPressed();
-        overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right);
+    public String extractTextFromPDF(InputStream inputStream) {
+        try {
+            PDDocument document = PDDocument.load(inputStream);
+            PDFTextStripper pdfStripper = new PDFTextStripper();
+            String text = pdfStripper.getText(document);
+            document.close();
+            return text;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "";
+        }
     }
 
     private void openImagePicker() {
@@ -169,25 +119,20 @@ public class DocumentToText extends AppCompatActivity {
                     if ("application/pdf".equals(mimeType)) {
                         PDDocument document = PDDocument.load(inputStream);
                         PDFTextStripper pdfStripper = new PDFTextStripper();
-
                         int totalPages = document.getNumberOfPages();
                         for (int i = 1; i <= totalPages; i++) {
-                            Thread.sleep(50); // Simulate processing time
-                            int progress = (i * 100) / totalPages;
-                            publishProgress(progress);
+                            Thread.sleep(50);
+                            publishProgress((i * 100) / totalPages);
                         }
-
                         String extractedText = pdfStripper.getText(document);
                         document.close();
                         return extractedText;
                     } else if ("application/vnd.openxmlformats-officedocument.wordprocessingml.document".equals(mimeType)) {
                         XWPFDocument document = new XWPFDocument(inputStream);
-
                         for (int i = 1; i <= 10; i++) {
-                            Thread.sleep(100); // Simulate processing
+                            Thread.sleep(100);
                             publishProgress(i * 10);
                         }
-
                         return new XWPFWordExtractor(document).getText();
                     } else {
                         return "Unsupported file type.";
@@ -208,10 +153,7 @@ public class DocumentToText extends AppCompatActivity {
             protected void onPostExecute(String result) {
                 progressBar.setVisibility(View.GONE);
                 progressText.setVisibility(View.GONE);
-
-                Intent intent = new Intent(DocumentToText.this, OutputTextActivity.class);
-                intent.putExtra("outputText", result);
-                startActivity(intent);
+                showOptionsDialog(result);
             }
         }.execute(fileUri);
     }
@@ -222,13 +164,12 @@ public class DocumentToText extends AppCompatActivity {
 
         try {
             Bitmap selectedImageBitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), fileUri);
-
             new AsyncTask<Bitmap, Integer, String>() {
                 @Override
                 protected String doInBackground(Bitmap... bitmaps) {
                     for (int i = 1; i <= 100; i += 5) {
                         try {
-                            Thread.sleep(50); // Simulate processing time
+                            Thread.sleep(50);
                             publishProgress(i);
                         } catch (InterruptedException e) {
                             e.printStackTrace();
@@ -247,15 +188,36 @@ public class DocumentToText extends AppCompatActivity {
                 protected void onPostExecute(String result) {
                     progressBar.setVisibility(View.GONE);
                     progressText.setVisibility(View.GONE);
-
-                    Intent intent = new Intent(DocumentToText.this, OutputTextActivity.class);
-                    intent.putExtra("outputText", result);
-                    startActivity(intent);
+                    showOptionsDialog(result);
                 }
             }.execute(selectedImageBitmap);
         } catch (IOException e) {
             e.printStackTrace();
             Toast.makeText(this, "Error loading image", Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private void showOptionsDialog(String extractedText) {
+        new AlertDialog.Builder(DocumentToText.this)
+                .setTitle("Choose Action")
+                .setMessage("What would you like to do with the extracted text?")
+                .setPositiveButton("View Text", (dialog, which) -> {
+                    Intent intent = new Intent(DocumentToText.this, OutputTextActivity.class);
+                    intent.putExtra("outputText", extractedText);
+                    startActivity(intent);
+                })
+                .setNegativeButton("Generate Quiz", (dialog, which) -> {
+                    Intent intent = new Intent(DocumentToText.this, GenerateQuiz.class);
+                    intent.putExtra("inputText", extractedText);
+                    startActivity(intent);
+                })
+                .setNeutralButton("Summarize", (dialog, which) -> {
+                    TextSummarizer.summarizeTextAsync(extractedText, summarizedText -> {
+                        Intent intent = new Intent(DocumentToText.this, OutputTextActivity.class);
+                        intent.putExtra("outputText", summarizedText);
+                        startActivity(intent);
+                    });
+                })
+                .show();
     }
 }

@@ -1,121 +1,154 @@
 package com.example.aiquizgenerator;
 
-import android.content.Context;
-import opennlp.tools.sentdetect.SentenceDetectorME;
-import opennlp.tools.sentdetect.SentenceModel;
-import opennlp.tools.tokenize.TokenizerME;
-import opennlp.tools.tokenize.TokenizerModel;
+import android.os.AsyncTask;
+import android.util.Log;
 
-import java.io.InputStream;
-import java.util.*;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
+
+import okhttp3.*;
 
 public class TextSummarizer {
 
-    private static final Logger logger = Logger.getLogger(TextSummarizer.class.getName());
-    private static SentenceDetectorME sentenceDetector;
-    private static TokenizerME tokenizer;
-    static final double summaryPercentage = 0.4;
+    private static final String TAG = "TextSummarizer";
+    private static final String HF_API_URL = "https://api-inference.huggingface.co/models/facebook/bart-large-cnn";
+    private static final String HF_API_KEY = "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";
 
-    // Initialize models
-    public static void initializeModels(Context context) {
-        try {
-            logger.info("Attempting to load sentence model from assets...");
+    private static OkHttpClient client = new OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .build();
 
-            // Load sentence detection model from assets
-            InputStream sentenceModelIn = context.getAssets().open("opennlp-en-ud-ewt-sentence-1.2-2.5.0.bin");
-            SentenceModel sentenceModel = new SentenceModel(sentenceModelIn);
-            sentenceDetector = new SentenceDetectorME(sentenceModel);
-
-            // Load tokenization model from assets
-            InputStream tokenModelIn = context.getAssets().open("opennlp-en-ud-ewt-tokens-1.2-2.5.0.bin");
-            TokenizerModel tokenModel = new TokenizerModel(tokenModelIn);
-            tokenizer = new TokenizerME(tokenModel);
-
-            logger.info("Models successfully loaded.");
-
-        } catch (Exception e) {
-            logger.log(Level.SEVERE, "Error initializing models.", e);
-        }
+    public interface SummarizationCallback {
+        void onSummarizationComplete(String result);
     }
 
-    // Tokenize sentences and words for sentence similarity computation
-    private static String[] tokenizeText(String text) {
-        return tokenizer.tokenize(text);
+    public static void summarizeTextAsync(String text, SummarizationCallback callback) {
+        new ChunkedSummarizationTask(callback).execute(text);
     }
 
-    // Convert a sentence into a word frequency map
-    private static Map<String, Integer> getWordFrequencyMap(String sentence) {
-        Map<String, Integer> wordFrequency = new HashMap<>();
-        String[] words = tokenizeText(sentence);
+    private static class ChunkedSummarizationTask extends AsyncTask<String, Void, String> {
+        private static final int CHUNK_SIZE = 1000;
+        private SummarizationCallback callback;
 
-        for (String word : words) {
-            wordFrequency.put(word.toLowerCase(), wordFrequency.getOrDefault(word.toLowerCase(), 0) + 1);
-        }
-        return wordFrequency;
-    }
-
-    // Summarize text using a word frequency-based approach (extractive summarization)
-    public static String summarizeText(String text) {
-        // Check if models are initialized
-        if (sentenceDetector == null || tokenizer == null) {
-            logger.severe("Models are not initialized. Returning early.");
-            return "Models are not initialized.";
+        ChunkedSummarizationTask(SummarizationCallback callback) {
+            this.callback = callback;
         }
 
-        if (text == null || text.trim().isEmpty()) {
-            logger.warning("Input text is empty or null.");
-            return "Input text is empty or null.";
+        @Override
+        protected String doInBackground(String... texts) {
+            String fullText = texts[0];
+            if (fullText == null || fullText.trim().isEmpty()) {
+                return "Input text is empty or null.";
+            }
+
+            List<String> chunks = new ArrayList<>();
+            for (int i = 0; i < fullText.length(); i += CHUNK_SIZE) {
+                int end = Math.min(i + CHUNK_SIZE, fullText.length());
+                chunks.add(fullText.substring(i, end));
+            }
+
+            StringBuilder combinedSummary = new StringBuilder();
+
+            for (String chunk : chunks) {
+                String chunkSummary = summarizeChunk(chunk);
+                combinedSummary.append(cleanChunk(chunkSummary)).append("\n\n");
+            }
+
+            return applyPostProcessing(combinedSummary.toString().trim());
         }
 
-        // Step 1: Split the text into sentences
-        String[] sentences = sentenceDetector.sentDetect(text);
+        private String summarizeChunk(String chunk) {
+            try {
+                String json = "{" +
+                        "\"inputs\":\"" + escapeJsonString(chunk) + "\"," +
+                        "\"parameters\": {\"min_length\": 50}" +
+                        "}";
 
-        // Step 2: Calculate word frequencies in each sentence
-        Map<String, Integer> globalWordFrequency = new HashMap<>();
-        List<Map<String, Integer>> sentenceWordFrequencies = new ArrayList<>();
-        for (String sentence : sentences) {
-            Map<String, Integer> wordFrequency = getWordFrequencyMap(sentence);
-            sentenceWordFrequencies.add(wordFrequency);
+                Request request = new Request.Builder()
+                        .url(HF_API_URL)
+                        .addHeader("Authorization", "Bearer " + HF_API_KEY)
+                        .post(RequestBody.create(json, MediaType.parse("application/json")))
+                        .build();
 
-            // Update global word frequencies
-            for (String word : wordFrequency.keySet()) {
-                globalWordFrequency.put(word, globalWordFrequency.getOrDefault(word, 0) + wordFrequency.get(word));
+                Response response = client.newCall(request).execute();
+                if (response.isSuccessful() && response.body() != null) {
+                    String result = response.body().string();
+                    return parseBartSummary(result);
+                } else {
+                    Log.e(TAG, "Chunk summarization failed: " + response.code());
+                    return "[Error summarizing chunk]";
+                }
+            } catch (IOException e) {
+                Log.e(TAG, "Error summarizing chunk.", e);
+                return "[Exception occurred]";
             }
         }
 
-        // Step 3: Rank sentences based on the sum of frequencies of words in the sentence
-        List<SentenceScore> sentenceScores = new ArrayList<>();
-        for (int index = 0; index < sentences.length; index++) {
-            final int i = index;  // Make index effectively final for lambda use
-            double score = sentenceWordFrequencies.get(i).keySet().stream()
-                    .mapToDouble(word -> globalWordFrequency.getOrDefault(word, 0) * sentenceWordFrequencies.get(i).get(word))
-                    .sum();
-            sentenceScores.add(new SentenceScore(sentences[i], score));
+        @Override
+        protected void onPostExecute(String result) {
+            if (callback != null) {
+                callback.onSummarizationComplete(result);
+            }
         }
 
-        // Step 4: Sort sentences by their scores
-        sentenceScores.sort((a, b) -> Double.compare(b.score, a.score));
-
-        // Step 5: Select the top N sentences for the summary
-        StringBuilder summary = new StringBuilder();
-        int topSentencesCount = (int) Math.ceil(sentences.length * summaryPercentage);
-        for (int i = 0; i < Math.min(topSentencesCount, sentenceScores.size()); i++) {
-            summary.append(sentenceScores.get(i).sentence).append("\n");
+        private String cleanChunk(String chunk) {
+            return chunk.replaceAll("(?i)for confidential support call.*", "")
+                    .replaceAll("(?i)visit a local Samaritans.*", "")
+                    .replaceAll("http[s]?://\\S+", "[link]")
+                    .replaceAll("\\n{2,}", "\n");
         }
 
-        return summary.toString().trim();
+
+        private String applyPostProcessing(String text) {
+            String[] lines = text.split("\\n");
+            StringBuilder result = new StringBuilder();
+
+            String lastHeading = "";
+            for (String line : lines) {
+                String trimmed = line.trim();
+                if (trimmed.isEmpty()) continue;
+
+                // Automatically detect likely headings based on formatting (e.g., capitalized short lines)
+                if (trimmed.length() < 60 && trimmed.equals(trimmed.toUpperCase()) && !trimmed.equals(lastHeading)) {
+                    result.append("\n\n== ").append(trimmed).append(" ==\n");
+                    lastHeading = trimmed;
+                }
+
+                result.append(trimmed).append("\n");
+            }
+            return result.toString().trim();
+        }
     }
 
-    // Helper class to store sentences with their calculated scores
-    private static class SentenceScore {
-        String sentence;
-        double score;
-
-        SentenceScore(String sentence, double score) {
-            this.sentence = sentence;
-            this.score = score;
+        private static String parseBartSummary(String response) {
+        try {
+            JSONArray jsonArray = new JSONArray(response);
+            if (jsonArray.length() > 0) {
+                JSONObject firstItem = jsonArray.getJSONObject(0);
+                if (firstItem.has("summary_text")) {
+                    return firstItem.getString("summary_text");
+                }
+            }
+            return "[No summary generated]";
+        } catch (Exception e) {
+            Log.e(TAG, "Error parsing BART summary response.", e);
+            return "[Error parsing summary]";
         }
+    }
+
+    private static String escapeJsonString(String text) {
+        return text.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
     }
 }

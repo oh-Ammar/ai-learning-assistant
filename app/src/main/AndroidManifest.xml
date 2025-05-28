@@ -2,7 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Permissions for reading and writing external storage -->
+    <!-- Permissions for internet, reading and writing external storage -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
 
@@ -12,40 +13,28 @@
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.AIQuizGenerator"
         tools:targetApi="31">
 
-        <!-- Activity for generating quizzes -->
+        <!-- MAIN LAUNCHER ACTIVITY -->
         <activity
-            android:name=".GenerateQuiz"
-            android:exported="false" />
-
-        <!-- Activity for document summarization -->
-        <activity
-            android:name=".DocumentSummarizer"
-            android:exported="false" />
-
-        <!-- Activity for converting documents to text -->
-        <activity
-            android:name=".DocumentToText"
-            android:exported="false" />
-
-        <!-- Activity for displaying output text -->
-        <activity
-            android:name=".OutputTextActivity"
-            android:exported="false" />
-
-        <!-- Main launcher activity -->
-        <activity
-            android:name=".FrontPage"
+            android:name=".QuizGeneratorActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-    </application>
 
+        <!-- Additional app activities -->
+        <activity android:name=".GenerateQuiz" android:exported="false" />
+        <activity android:name=".DocumentSummarizer" android:exported="false" />
+        <activity android:name=".DocumentToText" android:exported="false" />
+        <activity android:name=".OutputTextActivity" android:exported="false" />
+        <activity android:name=".FrontPage" android:exported="false" />
+
+    </application>
 </manifest>

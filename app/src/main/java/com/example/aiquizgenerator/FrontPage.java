@@ -12,6 +12,8 @@ import android.widget.RelativeLayout;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
+
 public class FrontPage extends AppCompatActivity {
     RelativeLayout rootLayout;
     ImageView blurImageView;

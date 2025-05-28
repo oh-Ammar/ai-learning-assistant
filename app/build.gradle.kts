@@ -88,4 +88,6 @@ dependencies {
     implementation ("cc.mallet:mallet:2.0.8")
     implementation ("org.apache.commons:commons-math3:3.6.1")
     implementation ("net.sf.extjwnl:extjwnl:2.0.2")
+    implementation ("com.squareup.okhttp3:okhttp:4.9.3")
+    implementation ("org.json:json:20210307")
 }
